@@ -10,7 +10,7 @@ class Recommendation extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'product_name', 'reason', 'score', 'required_ingredients',
+        'user_id', 'product_name', 'reason', 'score', 'required_ingredients', 'batch_id', 'feedback',
     ];
 
     protected $casts = ['required_ingredients' => 'array'];

@@ -19,8 +19,10 @@
             <td class="p-3 text-center">{{ $i->quantity }} {{ $i->unit }}</td>
             <td class="p-3 text-center">{{ $i->reorder_level }} {{ $i->unit }}</td>
             <td class="p-3 text-center">
-                @if($i->quantity <= $i->reorder_level)
-                    <span class="bg-red-100 text-red-700 px-2 py-1 rounded">Low Stock</span>
+                @if($i->quantity <= 0)
+                    <span class="bg-red-200 text-red-800 px-2 py-1 rounded font-semibold">Out of Stock</span>
+                @elseif($i->quantity <= $i->reorder_level)
+                    <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Low Stock</span>
                 @else
                     <span class="bg-green-100 text-green-700 px-2 py-1 rounded">OK</span>
                 @endif

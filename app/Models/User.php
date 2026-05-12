@@ -7,13 +7,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'password', 'role', 'is_verified',
+        'name', 'email', 'password', 'role', 'is_verified', 'last_login_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -22,8 +23,9 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'is_verified' => 'boolean',
+            'last_login_at'     => 'datetime',
+            'password'          => 'hashed',
+            'is_verified'       => 'boolean',
         ];
     }
 
@@ -46,6 +48,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Recommendation::class);
     }
+
+    public function sentMessages(): HasMany     { return $this->hasMany(Message::class, 'sender_id'); }
+    public function receivedMessages(): HasMany { return $this->hasMany(Message::class, 'receiver_id'); }
 
     public function isAdmin(): bool   { return $this->role === 'admin'; }
     public function isVendor(): bool  { return $this->role === 'vendor'; }

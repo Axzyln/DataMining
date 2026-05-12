@@ -22,7 +22,12 @@ class IngredientDashboardController extends Controller
         }
 
         $products   = $query->orderBy('name')->paginate(12)->withQueryString();
-        $categories = Product::distinct()->pluck('category');
+        $categories = Product::whereHas('vendorProfile', fn($q) => $q->where('is_verified', true))
+            ->where('is_available', true)
+            ->where('stock_quantity', '>', 0)
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
 
         return view('baker.ingredient_dashboard', compact('products', 'categories'));
     }

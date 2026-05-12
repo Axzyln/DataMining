@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan *)",
+      "WebSearch",
+      "Bash(npx vite *)",
+      "Bash(npm install *)",
+      "Bash(del \"c:\\\\Users\\\\Jon Ethan Tio\\\\DataMining\\\\database\\\\migrations\\\\2026_05_13_200001_add_category_to_baker_inventories_table.php\")"
+    ]
+  }
+}
