@@ -38,7 +38,18 @@ class IngredientDashboardController extends Controller
         $totalSales      = \App\Models\Sale::where('user_id', $userId)->sum('total');
         $todaySales      = \App\Models\Sale::where('user_id', $userId)->whereDate('sale_date', today())->sum('total');
         $inventoryCount  = \App\Models\BakerInventory::where('user_id', $userId)->count();
-        $recommendations = \App\Models\Recommendation::where('user_id', $userId)->latest()->take(3)->get();
+        $latestBatch = \App\Models\Recommendation::where('user_id', $userId)
+            ->whereNotNull('batch_id')
+            ->orderByDesc('created_at')
+            ->value('batch_id');
+
+        $recommendations = $latestBatch
+            ? \App\Models\Recommendation::where('user_id', $userId)
+                ->where('batch_id', $latestBatch)
+                ->orderByDesc('score')
+                ->take(3)
+                ->get()
+            : collect();
 
         return view('baker.dashboard', compact(
             'totalSales', 'todaySales', 'inventoryCount', 'recommendations'
