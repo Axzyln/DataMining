@@ -10,13 +10,28 @@
                     </a>
                 </div>
 
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
-                    </x-nav-link>
-                </div>
-            </div>
+               <!-- Navigation Links -->
+<div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+        {{ __('Dashboard') }}
+    </x-nav-link>
+
+    @auth
+        @if(auth()->user()->isAdmin())
+            <x-nav-link :href="route('admin.vendors')" :active="request()->routeIs('admin.vendors')">Vendors</x-nav-link>
+            <x-nav-link :href="route('admin.users')" :active="request()->routeIs('admin.users')">Users</x-nav-link>
+        @elseif(auth()->user()->isVendor())
+            <x-nav-link :href="route('vendor.profile.edit')" :active="request()->routeIs('vendor.profile.*')">Store Profile</x-nav-link>
+            <x-nav-link :href="route('vendor.products.index')" :active="request()->routeIs('vendor.products.*')">My Products</x-nav-link>
+        @elseif(auth()->user()->isBaker())
+            <x-nav-link :href="route('baker.ingredients')" :active="request()->routeIs('baker.ingredients')">Find Ingredients</x-nav-link>
+            <x-nav-link :href="route('baker.inventory.index')" :active="request()->routeIs('baker.inventory.*')">My Inventory</x-nav-link>
+            <x-nav-link :href="route('baker.sales.index')" :active="request()->routeIs('baker.sales.*')">Sales</x-nav-link>
+            <x-nav-link :href="route('baker.analytics')" :active="request()->routeIs('baker.analytics')">Analytics</x-nav-link>
+            <x-nav-link :href="route('baker.recommendations.index')" :active="request()->routeIs('baker.recommendations.*')">AI Recommendations</x-nav-link>
+        @endif
+    @endauth
+</div>
 
             <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ms-6">
