@@ -61,22 +61,7 @@
             </label>
         </div>
 
-        {{-- Maintenance --}}
-        <div class="rounded-xl bg-white border border-gray-100 shadow-sm p-6 space-y-4">
-            <h2 class="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-3">System</h2>
-
-            <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="maintenance_mode" value="1"
-                       {{ $settings['maintenance_mode'] === '1' ? 'checked' : '' }}
-                       class="h-4 w-4 rounded border-gray-300 text-red-500 focus:ring-red-400">
-                <div>
-                    <div class="text-sm font-medium text-gray-800">Maintenance Mode</div>
-                    <div class="text-xs text-gray-400">Display a maintenance notice to non-admin users.</div>
-                </div>
-            </label>
-        </div>
-
-        <div class="flex justify-end">
+<div class="flex justify-end">
             <button type="submit"
                     class="rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors">
                 Save Settings

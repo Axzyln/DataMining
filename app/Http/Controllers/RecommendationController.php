@@ -53,7 +53,11 @@ class RecommendationController extends Controller
         $inStock    = $allInventory->where('quantity', '>', 0);
         $outOfStock = $allInventory->where('quantity', '<=', 0);
 
-        $sales = Sale::where('user_id', $userId)
+        $windowDays = 7;
+        $windowStart = now()->subDays($windowDays)->toDateString();
+
+        $recentSales = Sale::where('user_id', $userId)
+            ->whereDate('sale_date', '>=', $windowStart)
             ->select('product_name',
                 DB::raw('SUM(quantity_sold) as total_qty'),
                 DB::raw('SUM(total) as total_revenue'))
@@ -61,39 +65,48 @@ class RecommendationController extends Controller
             ->orderByDesc('total_qty')
             ->get();
 
-        // Build a normalised set of in-stock ingredient names for matching
-        $inStockNames = $inStock->map(fn($i) => strtolower(trim($i->ingredient_name)))->flip();
+        // Normalised lookup sets (lowercase) for inventory matching
+        $inStockNames  = $inStock->mapWithKeys(fn($i) => [strtolower(trim($i->ingredient_name)) => $i->quantity]);
         $outStockNames = $outOfStock->map(fn($i) => strtolower(trim($i->ingredient_name)))->flip();
 
-        // Load all recipes with their ingredients and determine feasibility
+        // Cross-reference every recipe against the baker's actual inventory
         $allRecipes = Recipe::with('ingredients')->get();
 
         $feasible   = [];
         $infeasible = [];
 
         foreach ($allRecipes as $recipe) {
-            $criticalMissing = [];
+            $criticalMissing    = [];
+            $criticalAvailable  = [];
+
             foreach ($recipe->ingredients as $ing) {
                 $key = strtolower(trim($ing->ingredient_name));
-                if ($ing->is_critical && isset($outStockNames[$key])) {
-                    $criticalMissing[] = $ing->ingredient_name;
+                if (!$ing->is_critical) {
+                    continue;
+                }
+                // Out of stock in inventory
+                if (isset($outStockNames[$key])) {
+                    $criticalMissing[] = $ing->ingredient_name . ' (out of stock)';
+                // Not tracked in inventory at all — treat as unavailable
+                } elseif (!isset($inStockNames[$key])) {
+                    $criticalMissing[] = $ing->ingredient_name . ' (not in inventory)';
+                } else {
+                    $qty = $inStockNames[$key];
+                    $criticalAvailable[] = "{$ing->ingredient_name}: {$qty} {$ing->unit}";
                 }
             }
 
             if (empty($criticalMissing)) {
-                $criticalList = $recipe->ingredients
-                    ->where('is_critical', true)
-                    ->pluck('ingredient_name')
-                    ->join(', ');
-                $feasible[] = "- {$recipe->name} ({$recipe->category}) — requires: {$criticalList}";
+                $availStr = implode(', ', $criticalAvailable);
+                $feasible[] = "- {$recipe->name} ({$recipe->category}) | ingredients on hand: {$availStr}";
             } else {
-                $missing = implode(', ', $criticalMissing);
-                $infeasible[] = "- {$recipe->name}: missing {$missing}";
+                $missingStr = implode(', ', $criticalMissing);
+                $infeasible[] = "- {$recipe->name}: MISSING {$missingStr}";
             }
         }
 
-        $feasibleText   = empty($feasible)   ? 'None based on current inventory.' : implode("\n", $feasible);
-        $infeasibleText = empty($infeasible) ? 'None'                             : implode("\n", $infeasible);
+        $feasibleText   = empty($feasible)   ? 'None — not enough ingredients in stock for any recipe.' : implode("\n", $feasible);
+        $infeasibleText = empty($infeasible) ? 'None'                                                   : implode("\n", $infeasible);
 
         $inventoryText = $inStock->isEmpty()
             ? 'No ingredients currently in stock.'
@@ -103,40 +116,41 @@ class RecommendationController extends Controller
             ? 'None'
             : $outOfStock->map(fn($i) => "- {$i->ingredient_name}")->join("\n");
 
-        $salesText = $sales->isEmpty()
-            ? 'No sales recorded yet.'
-            : $sales->map(fn($s) => "- {$s->product_name}: {$s->total_qty} units sold, ₱{$s->total_revenue} revenue")->join("\n");
+        $salesText = $recentSales->isEmpty()
+            ? 'No sales in the past 7 days.'
+            : $recentSales->map(fn($s) => "- {$s->product_name}: {$s->total_qty} units sold, ₱{$s->total_revenue} revenue")->join("\n");
 
         $maxRecs = (int) (\App\Models\Setting::get('ai_max_recommendations', '8'));
 
         $prompt = <<<PROMPT
-You are a bakery business advisor for a Filipino bakery. Your job is to recommend which products the baker should bake today based on their current inventory and sales history.
+You are a bakery business advisor for a Filipino bakery. Recommend which products the baker should bake TODAY based strictly on local data: their actual ingredient inventory and their sales from the past {$windowDays} days only.
 
-BAKER'S INVENTORY (in stock):
+CURRENT INVENTORY (in stock with quantities):
 {$inventoryText}
 
-OUT OF STOCK (quantity = 0):
+OUT OF STOCK INGREDIENTS:
 {$outOfStockText}
 
-FEASIBLE RECIPES (all required ingredients are in stock — you MAY only recommend from this list):
+FEASIBLE RECIPES — cross-referenced against this baker's inventory (ingredients on hand listed):
 {$feasibleText}
 
-INFEASIBLE RECIPES (missing at least one required ingredient — NEVER recommend these):
+INFEASIBLE RECIPES — do NOT recommend any of these (missing required ingredients):
 {$infeasibleText}
 
-SALES HISTORY:
+SALES DATA — past {$windowDays} days only (use this to gauge demand):
 {$salesText}
 
 Rules:
-1. You MUST ONLY recommend products from the FEASIBLE RECIPES list above. Do not invent new products.
-2. NEVER recommend any product from the INFEASIBLE RECIPES list.
-3. Rank higher products with strong sales history and good ingredient coverage.
-4. You may suggest up to {$maxRecs} products.
+1. ONLY recommend products from the FEASIBLE RECIPES list. Do not invent products not in that list.
+2. NEVER recommend from the INFEASIBLE RECIPES list regardless of past sales.
+3. Prioritise products that sold well in the past 7 days AND have all ingredients available.
+4. If a feasible product has no recent sales, rank it lower but still consider it if it uses perishable ingredients (eggs, milk, butter) that should be used soon.
+5. Suggest up to {$maxRecs} products.
 
 Return ONLY a valid JSON array — no markdown, no extra text. Each object must have:
-- "product_name": string (must match a name from the FEASIBLE RECIPES list exactly)
+- "product_name": string (exact name from the FEASIBLE RECIPES list)
 - "score": integer 0–100 (recommendation strength)
-- "reason": string (2 sentences explaining why — reference actual available ingredients and sales data)
+- "reason": string (2 sentences — cite the actual ingredient quantities on hand and the 7-day sales figures)
 - "required_ingredients": array of the required ingredient name strings for this product
 PROMPT;
 
